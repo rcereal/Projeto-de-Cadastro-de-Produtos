@@ -89,3 +89,54 @@ def listar_produto(request):
             'categoria': produto.categoria.nome
         })
     return JsonResponse(produtos_json, safe=False)
+
+@csrf_exempt
+def gerenciar_produto(request, produto_id):
+    try:
+        produto = Produto.objects.get(id=produto_id)
+
+    except Produto.DoesNotExist:
+        return JsonResponse({'error': 'Produto não encontrado'}, status=404)
+    
+    if request.method == 'PUT':
+        try:
+            entradafe = json.loads(request.body)
+            nome = entradafe.get('nome', '').strip()
+            preco = entradafe.get('preco')
+            categoria_id = entradafe.get('categoria_id').strip()
+
+            if not nome or not preco or not categoria_id:
+                return JsonResponse({'error': 'Todos os campos são obrigatórios'}, status=400)
+            
+            try:
+                preco = float(preco)
+                if preco <= 0:
+                    return JsonResponse({'error': 'O preço deve ser maior que zero'}, status=400)
+            except ValueError:
+                return JsonResponse({'error': 'O preço deve ser um número valido'}, status=400)
+            
+            try:
+                categoria  = Categoria.objects.get(id=categoria_id)
+            except Categoria.DoesNotExist:
+                return JsonResponse({'error': 'Categoria não encontrada'}, status=404)
+            
+            produto.nome = nome
+            produto.preco = preco
+            produto.categoria = categoria
+            produto.save()
+
+            return JsonResponse({
+                'id': produto.id,
+                'nome': produto.nome,
+                'preco': str(produto.preco),
+                'categoria': produto.categoria.nome
+            }, status=200)
+    
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Erro ao processar JSON'}, status=400)
+        
+    elif request.method == 'DELETE':
+        produto.delete()
+        return JsonResponse({'message': 'Produto deletado com sucesso'}, status=200)
+    
+    return HttpResponseNotAllowed(['PUT', 'DELETE'])
