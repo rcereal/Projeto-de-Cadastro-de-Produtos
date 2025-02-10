@@ -218,6 +218,7 @@
 import flet as ft
 import requests
 import threading
+import functools
 
 def tela_principal(page):
     page.clean()
@@ -244,6 +245,7 @@ def tela_principal(page):
 
 def tela_cadastro_produtos(page):
     page.clean()
+    
     titulo_produto = ft.Text("Nome do Produto:")
     produto = ft.TextField(label="Digite o nome do produto")
 
@@ -251,33 +253,100 @@ def tela_cadastro_produtos(page):
     preco = ft.TextField(label="Digite o preço")
 
     titulo_categoria = ft.Text("Categoria:")
-    categoria = ft.TextField(label="Digite a categoria")
+    categoria = ft.TextField(label="Digite a categoria (opcional)")
+
+    categorias_disponiveis = []
+
+    categoria_dropdown = ft.Dropdown(
+        label="Selecione uma categoria",
+        options=[],
+    )
+
+    def carregar_categorias():
+        try:
+            response = requests.get("http://localhost:8000/api/categorias/")
+            if response.status_code == 200:
+                data = response.json()
+
+                opcoes_categorias = [ft.dropdown.Option(text=c["nome"], key=str(c["id"])) for c in data]
+
+                if not opcoes_categorias:
+                    print("Nenhuma categoria encontrada no banco de dados.")
+                    return
+
+                categoria_dropdown.options = opcoes_categorias
+                categoria_dropdown.value = opcoes_categorias[0].key
+
+                page.update()
+            else:
+                print(f"Erro ao buscar categorias: {response.status_code}")
+        except Exception as e:
+            print(f"Erro ao conectar com o backend: {e}")
+
+    carregar_categorias()
 
     def on_cadastrar(e):
+        # Obter o ID da categoria selecionada
+        categoria_selecionada = categoria_dropdown.value
+        
+        # Verificar se o campo de categoria está vazio ou não selecionado
+        categoria_digitada = categoria.value.strip()
+        categoria_final = categoria_digitada if categoria_digitada else categoria_selecionada
+
+        if not categoria_final:
+            snackbar = ft.SnackBar(content=ft.Text("Por favor, selecione ou digite uma categoria!"), open=True)
+            page.snack_bar = snackbar
+            page.update()
+            return
+
+        # Verificar se o nome do produto não está vazio
+        if not produto.value.strip():
+            snackbar = ft.SnackBar(content=ft.Text("O nome do produto não pode estar vazio!"), open=True)
+            page.snack_bar = snackbar
+            page.update()
+            return
+
         try:
+            # Converter o preço para float
+            preco_float = float(preco.value.strip()) if preco.value.strip() else 0.0
+
+            # Enviar os dados para o backend (usando o ID da categoria)
             response = requests.post(
                 "http://localhost:8000/api/cadastrar_produto/",
-                json={"nome": produto.value, "preco": preco.value, "categoria": categoria.value}
+                json={
+                    "nome": produto.value.strip(),
+                    "preco": preco_float,
+                    "categoria_id": categoria_final  # Passar o ID da categoria
+                }
             )
 
+            # Verificar a resposta da API
             if response.status_code == 201:
+                # Limpar os campos após sucesso
+                produto.value = ""
+                preco.value = ""
+                categoria.value = ""
+                categoria_dropdown.value = None
+
+                # Exibir a mensagem de sucesso
                 snackbar = ft.SnackBar(content=ft.Text("Produto cadastrado com sucesso!"), open=True)
+                page.snack_bar = snackbar
             else:
+                # Exibir erro caso a resposta não seja 201
                 error = response.json().get("error", "Erro desconhecido")
                 snackbar = ft.SnackBar(content=ft.Text(f"Erro ao cadastrar: {error}"), open=True)
 
             page.snack_bar = snackbar
             page.update()
+
         except Exception as ex:
             snackbar = ft.SnackBar(content=ft.Text(f"Erro ao conectar ao servidor: {ex}"), open=True)
             page.snack_bar = snackbar
             page.update()
 
     botao_cadastrar = ft.ElevatedButton(text="Cadastrar", on_click=on_cadastrar)
-
     botao_voltar = ft.ElevatedButton(text='Voltar', on_click=lambda e: tela_principal(page))
 
-    page.clean()
     page.add(
         titulo_produto,
         produto,
@@ -285,6 +354,7 @@ def tela_cadastro_produtos(page):
         preco,
         titulo_categoria,
         categoria,
+        categoria_dropdown,
         botao_cadastrar,
         botao_voltar
     )
@@ -300,16 +370,48 @@ def tela_ver_produtos(page):
             response = requests.get("http://localhost:8000/api/listar_produtos/")
             produtos = response.json()
 
-            page.controls.remove(status_text)
+            print("Produtos carregados:", produtos)
+
+            if status_text in page.controls:
+                page.controls.remove(status_text)
+
+            lista_produtos.controls.clear()
 
             titulo = ft.Text("Lista de Produtos", text_align="center")
-            lista_produtos.controls = [titulo] 
-            
-            lista_produtos.controls = [
-                ft.Text(f'Produto: {produto["nome"]}, Preço: {produto["preco"]}, Categoria: {produto["categoria"]}')
-                for produto in produtos
-            ]
-            status_text.value = ""  # Remove o texto "Carregando..."
+            lista_produtos.controls.append(titulo)
+
+            for produto in produtos:
+                lista_produtos.controls.append(
+                    ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Text(f'Produto: {produto["nome"]}', size=16, weight="bold"),
+                                ft.Text(f'Preço: R$ {produto["preco"]}', size=14),
+                                ft.Text(f'Categoria: {produto["categoria"]}', size=14),
+                                ft.Row(
+                                    [
+                                        ft.ElevatedButton('Editar', on_click=lambda e, p=produto: tela_editar_produtos(page, p)),
+                                        ft.ElevatedButton('Excluir', on_click=lambda e, p=produto["id"]: excluir_produto(p))
+                                    ],
+                                    alignment=ft.MainAxisAlignment.START
+                                )
+                            ],
+                            spacing=5
+                        ),
+                        padding=10,
+                        border_radius=8,
+                        border=ft.border.all(1, "gray"),
+                        width=400
+                    )
+                )
+
+            lista_produtos.controls.append(
+                ft.ElevatedButton("Atualizar Lista", on_click=lambda e: carregar_produtos())
+            )
+
+            status_text.value = ""
+            page.update()
+
         except requests.exceptions.JSONDecodeError as e:
             status_text.value = f"Erro ao decodificar JSON: {e}"
         except Exception as e:
@@ -317,10 +419,58 @@ def tela_ver_produtos(page):
         
         page.update()
 
-    # Executa a requisição em uma thread para não travar a interface
+    def excluir_produto(produto_id):
+        try:
+            print(f"Tentando excluir produto com ID: {produto_id}")
+            response = requests.delete(f'http://localhost:8000/api/excluir_produto/{produto_id}/')
+
+            if response.status_code == 200:
+                status_text.value = 'Produto excluido!'
+
+                carregar_produtos()
+            else:
+                erro_msg = response.json().get('error', 'Erro desconhecido')
+                status_text.value = f"Erro ao excluir: {erro_msg}"
+
+        except Exception as e:
+            status_text.value = f'Erro ao excluir produto: {e}'
+            
+        page.update()
+
+    def tela_editar_produtos(page,produto):
+        page.clean()
+
+        nome_field = ft.TextField(label='Nome', value=produto['nome'])
+        preco_field = ft.TextField(label='Preço', value=str(produto['preco']))
+        categoria_field = ft.TextField(label='Categoria', value=produto['categoria'])
+        
+        def salvar_edicao(e):
+            try:
+                entradafe = {
+                    'nome': nome_field.value,
+                    'preco': preco_field.value,
+                    'categoria': categoria_field.value
+                }
+                response = requests.put(f'http://localhost:8000/api/gerenciar_produto/{produto['id']}/', json=entradafe)
+                if response.status.code == 200:
+                    status_text.value = 'Produto editado com sucesso!'
+                    tela_ver_produtos(page)
+                else:
+                    erro_msg = response.json().get('error', 'Erro desconhecido')
+                    status_text.value = f"Erro ao atualizar: {erro_msg}"
+
+            except Exception as e:
+                status_text.value = f'Erro ao editar produto: {e}'
+
+            page.update()
+
+        botao_salvar = ft.ElevatedButton('Salvar', on_click=salvar_edicao)
+        botao_cancelar = ft.ElevatedButton('Cancelar', on_click=lambda e: tela_ver_produtos(page))
+
+        page.add(nome_field, preco_field, categoria_field, botao_salvar, botao_cancelar)
+
     threading.Thread(target=carregar_produtos, daemon=True).start()
 
-    botao_atualizar = ft.ElevatedButton(text="Atualizar Lista", on_click=lambda e: threading.Thread(target=carregar_produtos, daemon=True).start())
     botao_voltar = ft.ElevatedButton(text="Voltar", on_click=lambda e: tela_principal(page))
 
-    page.add(status_text, lista_produtos, botao_atualizar, botao_voltar)
+    page.add(status_text, lista_produtos, botao_voltar)

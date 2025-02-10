@@ -48,7 +48,7 @@ def produto_cadastrar(request):
         preco = entradafe.get('preco')
         if isinstance(preco, str):
             preco = preco.strip()
-        categoria_id = entradafe.get('categoria_id', '').strip()
+        categoria_id = entradafe.get('categoria_id', '')
 
         if not nome or not preco or not categoria_id:
             return JsonResponse({'error': 'Mensagem detalhada do erro'}, status=400)
@@ -57,7 +57,7 @@ def produto_cadastrar(request):
             preco = float(preco)
             if preco <= 0:
                 return JsonResponse({'error': "O preço deve ser maior que zero"}, status=400)
-            # preco = str(preco)
+            preco = str(preco)
         except ValueError:
             return JsonResponse({'error': 'O preço deve ser um número válido'}, status=400)
 
@@ -78,7 +78,7 @@ def produto_cadastrar(request):
     return HttpResponseNotAllowed(['POST'], 'Método não permitido.')
 
 @csrf_exempt
-def listar_produto(request):
+def listar_produtos(request):
     produtos = Produto.objects.all()
     produtos_json = []
     for produto in produtos:
@@ -135,8 +135,16 @@ def gerenciar_produto(request, produto_id):
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Erro ao processar JSON'}, status=400)
         
-    elif request.method == 'DELETE':
-        produto.delete()
-        return JsonResponse({'message': 'Produto deletado com sucesso'}, status=200)
-    
-    return HttpResponseNotAllowed(['PUT', 'DELETE'])
+    return HttpResponseNotAllowed(['PUT'])
+
+@csrf_exempt
+def excluir_produto(request, produto_id):
+    if request.method == 'DELETE':
+        try:
+            produto = Produto.objects.get(id=produto_id)
+            produto.delete()
+            return JsonResponse({'message': 'Produto deletado com sucesso'}, status=200)
+        except Produto.DoesNotExist:
+            return JsonResponse({'error': 'Produto não encontrado'}, status=404)
+    else:
+        return JsonResponse({'error': 'Método não permitido'}, status=405)
