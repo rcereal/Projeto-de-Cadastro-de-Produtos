@@ -1,4 +1,5 @@
 from django.db import models
+from decimal import Decimal
 
 
 class Categoria(models.Model):
@@ -24,11 +25,7 @@ class Produto(models.Model):
         verbose_name="Nome do Produto", 
         help_text="Digite o nome do produto."
     )
-    preco = models.CharField(
-        max_length=10,
-        verbose_name="Preço do Produto", 
-        help_text="Digite o preço do produto."
-    )
+    preco = models.TextField()
     categoria = models.ForeignKey(
         Categoria, 
         on_delete=models.CASCADE, 

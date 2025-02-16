@@ -286,10 +286,9 @@ def tela_cadastro_produtos(page):
     carregar_categorias()
 
     def on_cadastrar(e):
-        # Obter o ID da categoria selecionada
+        print("Botão cadastrar clicado!")
+
         categoria_selecionada = categoria_dropdown.value
-        
-        # Verificar se o campo de categoria está vazio ou não selecionado
         categoria_digitada = categoria.value.strip()
         categoria_final = categoria_digitada if categoria_digitada else categoria_selecionada
 
@@ -299,7 +298,6 @@ def tela_cadastro_produtos(page):
             page.update()
             return
 
-        # Verificar se o nome do produto não está vazio
         if not produto.value.strip():
             snackbar = ft.SnackBar(content=ft.Text("O nome do produto não pode estar vazio!"), open=True)
             page.snack_bar = snackbar
@@ -307,39 +305,45 @@ def tela_cadastro_produtos(page):
             return
 
         try:
-            # Converter o preço para float
-            preco_float = float(preco.value.strip()) if preco.value.strip() else 0.0
+            preco_formatado = preco.value.strip()
+        
+            # Remover os pontos usados como separadores de milhar (deixar apenas o ponto decimal ou vírgula)
+            preco_formatado = preco_formatado.replace(".", "")  # Remove todos os pontos
+            preco_formatado = preco_formatado.replace(",", ".")  # Substitui vírgula por ponto para compatibilidade com floats
+            # preco_float = round(float(preco_formatado), 2) if preco_formatado else 0.00
 
-            # Enviar os dados para o backend (usando o ID da categoria)
+            # 🔹 Debug: Verificar os valores antes de enviar
+            print(f"Enviando dados -> Nome: {produto.value.strip()}, Preço: {preco_formatado}, Categoria: {categoria_final}")
+
             response = requests.post(
                 "http://localhost:8000/api/cadastrar_produto/",
                 json={
                     "nome": produto.value.strip(),
-                    "preco": preco_float,
-                    "categoria_id": categoria_final  # Passar o ID da categoria
+                    "preco": preco_formatado,  # ✅ Mantém duas casas decimais  f"{preco_float:.2f}"
+                    "categoria_id": categoria_final  # ✅ Correção
                 }
             )
 
-            # Verificar a resposta da API
+            print(f"Resposta da API -> Código: {response.status_code}, Resposta: {response.text}")
+
             if response.status_code == 201:
-                # Limpar os campos após sucesso
                 produto.value = ""
                 preco.value = ""
                 categoria.value = ""
                 categoria_dropdown.value = None
-
-                # Exibir a mensagem de sucesso
                 snackbar = ft.SnackBar(content=ft.Text("Produto cadastrado com sucesso!"), open=True)
-                page.snack_bar = snackbar
             else:
-                # Exibir erro caso a resposta não seja 201
-                error = response.json().get("error", "Erro desconhecido")
-                snackbar = ft.SnackBar(content=ft.Text(f"Erro ao cadastrar: {error}"), open=True)
+                try:
+                    error_msg = response.json().get("error", "Erro desconhecido")
+                except:
+                    error_msg = response.text
+                snackbar = ft.SnackBar(content=ft.Text(f"Erro ao cadastrar: {error_msg}"), open=True)
 
             page.snack_bar = snackbar
             page.update()
 
         except Exception as ex:
+            print(f"Erro ao conectar ao servidor: {ex}")
             snackbar = ft.SnackBar(content=ft.Text(f"Erro ao conectar ao servidor: {ex}"), open=True)
             page.snack_bar = snackbar
             page.update()
