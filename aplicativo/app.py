@@ -439,22 +439,19 @@ def tela_ver_produtos(page):
     def tela_editar_produtos(page, produto):
         page.clean()
 
-        # 🔹 Buscar categorias do backend
         response = requests.get("http://localhost:8000/api/categorias/")
         categorias = response.json() if response.status_code == 200 else []
         
-        # 🔹 Criar opções para o Dropdown
         categoria_opcoes = [ft.dropdown.Option(c['nome'], data=c['id']) for c in categorias]
 
-        categoria_atual = produto.get('categoria_id')  # Certifique-se de que categoria_id está presente
+        categoria_atual = produto.get('categoria_id')
 
-        # 🔹 Criar campos de edição
         nome_field = ft.TextField(label="Nome", value=produto['nome'])
         preco_field = ft.TextField(label="Preço", value=str(produto['preco']))
         categoria_dropdown = ft.Dropdown(
             label="Categoria",
             options=categoria_opcoes,
-            value=categoria_atual  # Define a categoria atual como selecionada
+            value=categoria_atual 
         )
 
         def salvar_edicao(e):
