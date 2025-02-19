@@ -4,8 +4,12 @@ from django.contrib.auth import authenticate
 from .models import *
 from django.views.decorators.csrf import csrf_exempt
 import json
+import re
+import logging
 from django.http import HttpResponseNotAllowed
-from decimal import Decimal
+# from decimal import Decimal,InvalidOperation
+
+logger = logging.getLogger(__name__)
 
 @csrf_exempt
 def login_usuario(request):
@@ -125,16 +129,19 @@ def categoria_list(request):
         
 #     return HttpResponseNotAllowed(['PUT'])
 
-def validar_preco(preco_str):
-    # Substitui a vírgula por ponto
-    preco_str = preco_str.replace(',', '.')
-    
-    # Verifica se o valor tem apenas números e ponto
-    if not all(c.isdigit() or c == '.' for c in preco_str):
-        raise ValueError('O preço deve conter apenas números e ponto ou vírgula.')
+@csrf_exempt
+def validar_preco(preco):
+    if not isinstance(preco, str):
+        raise ValueError("O preço deve ser uma string.")
 
-    # Converte para Decimal e arredonda para 2 casas decimais
-    preco = Decimal(preco_str)
+    if not re.match(r'^[0-9.,]+$', preco):
+        raise ValueError("O preço deve conter apenas números, ponto (.) e vírgula (,).")
+
+    preco = preco.replace(',', '.')
+
+    if preco.count('.') > 2:
+        raise ValueError("Formato de preço inválido.")
+
     return preco
 
 @csrf_exempt
@@ -167,7 +174,7 @@ def produto_cadastrar(request):
         return JsonResponse({
             'id': produto.id,
             'nome': produto.nome,
-            'preco': str(produto.preco),  # Exibe o preço como string
+            'preco': str(produto.preco),
             'categoria': produto.categoria.nome
         }, status=201)
 
@@ -175,42 +182,63 @@ def produto_cadastrar(request):
 
 @csrf_exempt
 def gerenciar_produto(request, produto_id):
-    try:
-        produto = Produto.objects.get(id=produto_id)
-    except Produto.DoesNotExist:
-        return JsonResponse({'error': 'Produto não encontrado'}, status=404)
-
     if request.method == 'PUT':
+        # Tenta carregar o JSON e captura erros
         try:
             entradafe = json.loads(request.body)
-            nome = entradafe.get('nome', '').strip()
-            preco = entradafe.get('preco')
-            categoria_id = entradafe.get('categoria_id').strip()
+        except json.JSONDecodeError as e:
+            logger.error(f"Erro ao decodificar JSON: {str(e)}")
+            return JsonResponse({'error': 'JSON inválido'}, status=400)
 
-            if not nome or not preco or not categoria_id:
-                return JsonResponse({'error': 'Todos os campos são obrigatórios'}, status=400)
+        logger.info(f"Dados recebidos: {entradafe}")
 
+        nome = entradafe.get('nome', '').strip()
+        preco = entradafe.get('preco')
+        categoria_nome = entradafe.get('categoria_id', '').strip()
+
+        if not nome:
+            return JsonResponse({'error': 'O campo nome é obrigatório.'}, status=400)
+
+        if not categoria_nome:
+            return JsonResponse({'error': 'O campo categoria_id é obrigatório.'}, status=400)
+
+        if not preco:
+            return JsonResponse({'error': 'O preço é obrigatório.'}, status=400)
+
+        try:
             preco = validar_preco(preco)
+        except ValueError as e:
+            logger.warning(f"Erro na validação do preço: {str(e)}")
+            return JsonResponse({'error': str(e)}, status=400)
 
-            try:
-                categoria = Categoria.objects.get(id=categoria_id)
-            except Categoria.DoesNotExist:
-                return JsonResponse({'error': 'Categoria não encontrada'}, status=404)
+        # Buscar a categoria pelo nome
+        try:
+            categoria = Categoria.objects.get(nome=categoria_nome)
+        except Categoria.DoesNotExist:
+            logger.warning(f"Categoria '{categoria_nome}' não encontrada.")
+            return JsonResponse({'error': 'Categoria não encontrada'}, status=404)
 
-            produto.nome = nome
-            produto.preco = str(preco)  # Armazenar como string
-            produto.categoria = categoria
-            produto.save()
+        # Buscar o produto pelo ID
+        try:
+            produto = Produto.objects.get(id=produto_id)
+        except Produto.DoesNotExist:
+            logger.warning(f"Produto com ID {produto_id} não encontrado.")
+            return JsonResponse({'error': 'Produto não encontrado'}, status=404)
 
-            return JsonResponse({
-                'id': produto.id,
-                'nome': produto.nome,
-                'preco': str(produto.preco),  # Exibe o preço como string
-                'categoria': produto.categoria.nome
-            }, status=200)
+        # Atualiza os dados do produto
+        produto.nome = nome
+        produto.preco = str(preco)
+        produto.categoria = categoria
+        produto.save()
 
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Erro ao processar JSON'}, status=400)
+        logger.info(f"Produto atualizado: ID {produto.id}, Nome {produto.nome}, Preço {produto.preco}, Categoria {produto.categoria.nome}")
+
+        return JsonResponse({
+            'id': produto.id,
+            'nome': produto.nome,
+            'preco': str(produto.preco),
+            'categoria': produto.categoria.nome
+        }, status=200)
 
     return HttpResponseNotAllowed(['PUT'])
 

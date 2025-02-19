@@ -305,12 +305,7 @@ def tela_cadastro_produtos(page):
             return
 
         try:
-            preco_formatado = preco.value.strip()
-        
-            # Remover os pontos usados como separadores de milhar (deixar apenas o ponto decimal ou vírgula)
-            preco_formatado = preco_formatado.replace(".", "")  # Remove todos os pontos
-            preco_formatado = preco_formatado.replace(",", ".")  # Substitui vírgula por ponto para compatibilidade com floats
-            # preco_float = round(float(preco_formatado), 2) if preco_formatado else 0.00
+            preco_formatado = preco.value.strip()  # 🔹 Agora o valor é mantido sem alterações!
 
             # 🔹 Debug: Verificar os valores antes de enviar
             print(f"Enviando dados -> Nome: {produto.value.strip()}, Preço: {preco_formatado}, Categoria: {categoria_final}")
@@ -319,8 +314,8 @@ def tela_cadastro_produtos(page):
                 "http://localhost:8000/api/cadastrar_produto/",
                 json={
                     "nome": produto.value.strip(),
-                    "preco": preco_formatado,  # ✅ Mantém duas casas decimais  f"{preco_float:.2f}"
-                    "categoria_id": categoria_final  # ✅ Correção
+                    "preco": preco_formatado,  # ✅ Agora mantém exatamente o que foi digitado
+                    "categoria_id": categoria_final
                 }
             )
 
@@ -441,37 +436,51 @@ def tela_ver_produtos(page):
             
         page.update()
 
-    def tela_editar_produtos(page,produto):
+    def tela_editar_produtos(page, produto):
         page.clean()
 
-        nome_field = ft.TextField(label='Nome', value=produto['nome'])
-        preco_field = ft.TextField(label='Preço', value=str(produto['preco']))
-        categoria_field = ft.TextField(label='Categoria', value=produto['categoria'])
+        # 🔹 Buscar categorias do backend
+        response = requests.get("http://localhost:8000/api/categorias/")
+        categorias = response.json() if response.status_code == 200 else []
         
+        # 🔹 Criar opções para o Dropdown
+        categoria_opcoes = [ft.dropdown.Option(c['nome'], data=c['id']) for c in categorias]
+
+        categoria_atual = produto.get('categoria_id')  # Certifique-se de que categoria_id está presente
+
+        # 🔹 Criar campos de edição
+        nome_field = ft.TextField(label="Nome", value=produto['nome'])
+        preco_field = ft.TextField(label="Preço", value=str(produto['preco']))
+        categoria_dropdown = ft.Dropdown(
+            label="Categoria",
+            options=categoria_opcoes,
+            value=categoria_atual  # Define a categoria atual como selecionada
+        )
+
         def salvar_edicao(e):
             try:
                 entradafe = {
-                    'nome': nome_field.value,
-                    'preco': preco_field.value,
-                    'categoria': categoria_field.value
+                    "nome": nome_field.value,
+                    "preco": preco_field.value,
+                    "categoria_id": categoria_dropdown.value  # Obtendo valor do Dropdown
                 }
-                response = requests.put(f'http://localhost:8000/api/gerenciar_produto/{produto['id']}/', json=entradafe)
-                if response.status.code == 200:
-                    status_text.value = 'Produto editado com sucesso!'
+                response = requests.put(f"http://localhost:8000/api/gerenciar_produto/{produto['id']}/", json=entradafe)
+                if response.status_code == 200:
+                    status_text.value = "Produto editado com sucesso!"
                     tela_ver_produtos(page)
                 else:
-                    erro_msg = response.json().get('error', 'Erro desconhecido')
+                    erro_msg = response.json().get("error", "Erro desconhecido")
                     status_text.value = f"Erro ao atualizar: {erro_msg}"
 
             except Exception as e:
-                status_text.value = f'Erro ao editar produto: {e}'
+                status_text.value = f"Erro ao editar produto: {e}"
 
             page.update()
 
         botao_salvar = ft.ElevatedButton('Salvar', on_click=salvar_edicao)
         botao_cancelar = ft.ElevatedButton('Cancelar', on_click=lambda e: tela_ver_produtos(page))
 
-        page.add(nome_field, preco_field, categoria_field, botao_salvar, botao_cancelar)
+        page.add(nome_field, preco_field, categoria_dropdown, botao_salvar, botao_cancelar)
 
     threading.Thread(target=carregar_produtos, daemon=True).start()
 
