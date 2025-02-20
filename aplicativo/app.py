@@ -361,8 +361,14 @@ def tela_cadastro_produtos(page):
 def tela_ver_produtos(page):
     page.clean()
 
-    lista_produtos = ft.Column()
     status_text = ft.Text("Carregando...")  # Mensagem de carregamento
+
+    # Criando uma lista rolável para os produtos
+    lista_produtos = ft.ListView(
+        expand=True,  # Ocupa todo o espaço disponível
+        spacing=10,   # Espaçamento entre os itens
+        auto_scroll=False  # Mantém a rolagem manual
+    )
 
     def carregar_produtos():
         try:
@@ -404,10 +410,6 @@ def tela_ver_produtos(page):
                     )
                 )
 
-            lista_produtos.controls.append(
-                ft.ElevatedButton("Atualizar Lista", on_click=lambda e: carregar_produtos())
-            )
-
             status_text.value = ""
             page.update()
 
@@ -417,6 +419,15 @@ def tela_ver_produtos(page):
             status_text.value = f"Erro ao carregar lista de produtos: {e}"
         
         page.update()
+
+    botoes_container = ft.Row(
+    [
+        ft.ElevatedButton("Atualizar Lista", on_click=lambda e: carregar_produtos()),
+        ft.Container(width=20),  # Espaçamento entre os botões
+        ft.ElevatedButton("Voltar", on_click=lambda e: tela_principal(page))
+    ],
+    alignment=ft.MainAxisAlignment.CENTER
+)
 
     def excluir_produto(produto_id):
         try:
@@ -481,6 +492,6 @@ def tela_ver_produtos(page):
 
     threading.Thread(target=carregar_produtos, daemon=True).start()
 
-    botao_voltar = ft.ElevatedButton(text="Voltar", on_click=lambda e: tela_principal(page))
+    # botao_voltar = ft.ElevatedButton(text="Voltar", on_click=lambda e: tela_principal(page))
 
-    page.add(status_text, lista_produtos, botao_voltar)
+    page.add(status_text, lista_produtos, botoes_container)
