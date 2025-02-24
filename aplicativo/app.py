@@ -285,6 +285,12 @@ def tela_cadastro_produtos(page):
 
     carregar_categorias()
 
+    def validar_preco(e):
+        preco.value = ''.join(c for c in preco.value if c.isdigit() or c in ".,")
+        page.update()
+
+    preco.on_change = validar_preco
+
     def on_cadastrar(e):
         print("Botão cadastrar clicado!")
 
