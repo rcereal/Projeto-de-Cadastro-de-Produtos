@@ -525,33 +525,65 @@ def tela_ver_produtos(page):
         categoria_dropdown = ft.Dropdown(
             label="Categoria",
             options=categoria_opcoes,
-            value=categoria_atual 
+            value=categoria_atual
         )
+
+        status_text = ft.Text("", size=14, color="red", weight="bold")
 
         def salvar_edicao(e):
             try:
                 entradafe = {
                     "nome": nome_field.value,
                     "preco": preco_field.value,
-                    "categoria_id": categoria_dropdown.value  # Obtendo valor do Dropdown
+                    "categoria_id": categoria_dropdown.value
                 }
                 response = requests.put(f"http://localhost:8000/api/gerenciar_produto/{produto['id']}/", json=entradafe)
+
                 if response.status_code == 200:
-                    status_text.value = "Produto editado com sucesso!"
+                    status_text.value = "✅ Produto editado com sucesso!"
+                    status_text.color = "green"
                     tela_ver_produtos(page)
                 else:
                     erro_msg = response.json().get("error", "Erro desconhecido")
-                    status_text.value = f"Erro ao atualizar: {erro_msg}"
+                    status_text.value = f"❌ Erro ao atualizar: {erro_msg}"
 
             except Exception as e:
-                status_text.value = f"Erro ao editar produto: {e}"
+                status_text.value = f"❌ Erro ao editar produto: {e}"
 
             page.update()
 
-        botao_salvar = ft.ElevatedButton('Salvar', on_click=salvar_edicao)
-        botao_cancelar = ft.ElevatedButton('Cancelar', on_click=lambda e: tela_ver_produtos(page))
+        botao_salvar = ft.ElevatedButton(
+            "Salvar",
+            on_click=salvar_edicao,
+            bgcolor="#1E88E5",
+            color="white",
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=8),
+                padding=10
+            )
+        )
 
-        page.add(nome_field, preco_field, categoria_dropdown, botao_salvar, botao_cancelar)
+        botao_cancelar = ft.ElevatedButton(
+            "Cancelar",
+            on_click=lambda e: tela_ver_produtos(page),
+            bgcolor="#DC3545",
+            color="white",
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=8),
+                padding=10
+            )
+        )
+
+        page.add(
+            ft.Column([
+                ft.Text("✏️ Editar Produto", size=22, weight="bold"),
+                nome_field,
+                preco_field,
+                categoria_dropdown,
+                ft.Row([botao_salvar, botao_cancelar], spacing=20, alignment="center"),
+                status_text
+            ], alignment="center", spacing=20)
+        )
 
     threading.Thread(target=carregar_produtos, daemon=True).start()
 
