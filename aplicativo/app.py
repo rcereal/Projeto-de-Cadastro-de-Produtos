@@ -218,48 +218,80 @@
 import flet as ft
 import requests
 import threading
-import functools
 
 def tela_principal(page):
     page.clean()
     page.title = "Cadastro de Produtos"
     page.window_width = 400
+    page.window_height = 500
+    page.vertical_alignment = ft.MainAxisAlignment.CENTER
 
-    titulo = ft.Text("Cadastro de Produtos", text_align="center")
+    titulo = ft.Text(
+        "Cadastro de Produtos",
+        size=22,
+        weight=ft.FontWeight.BOLD,
+        text_align=ft.TextAlign.CENTER
+    )
 
     botao_cadastrar = ft.ElevatedButton(
         text="Cadastrar Produto",
-        on_click=lambda e: tela_cadastro_produtos(page)
+        on_click=lambda e: tela_cadastro_produtos(page),
+        width=300,
+        bgcolor=ft.colors.BLUE,
+        color=ft.colors.WHITE
     )
 
     botao_ver_produtos = ft.ElevatedButton(
         text="Ver Produtos",
-        on_click=lambda e: tela_ver_produtos(page)
+        on_click=lambda e: tela_ver_produtos(page),
+        width=300,
+        bgcolor=ft.colors.GREEN,
+        color=ft.colors.WHITE
+    )
+
+    container = ft.Container(
+        content=ft.Column(
+            [
+                titulo,
+                botao_cadastrar,
+                botao_ver_produtos
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=20
+        ),
+        width=350,
+        padding=20,
+        border_radius=12,
+        bgcolor=ft.colors.GREY_200
     )
 
     page.add(
-        titulo,
-        botao_cadastrar,
-        botao_ver_produtos
+        ft.Row([container], alignment=ft.MainAxisAlignment.CENTER)
     )
 
 def tela_cadastro_produtos(page):
     page.clean()
-    
-    titulo_produto = ft.Text("Nome do Produto:")
-    produto = ft.TextField(label="Digite o nome do produto")
+    page.title = "Cadastro de Produtos"
+    page.window_width = 400
+    page.window_height = 550
+    page.vertical_alignment = ft.MainAxisAlignment.CENTER
 
-    titulo_preco = ft.Text("Preço:")
-    preco = ft.TextField(label="Digite o preço")
+    titulo = ft.Text(
+        "Cadastro de Produtos",
+        size=22,
+        weight=ft.FontWeight.BOLD,
+        text_align=ft.TextAlign.CENTER
+    )
 
-    titulo_categoria = ft.Text("Categoria:")
-    categoria = ft.TextField(label="Digite a categoria (opcional)")
-
-    categorias_disponiveis = []
+    produto = ft.TextField(label="Nome do Produto", width=300)
+    preco = ft.TextField(label="Preço", width=300)
+    categoria = ft.TextField(label="Digite uma categoria (opcional)", width=300)
 
     categoria_dropdown = ft.Dropdown(
         label="Selecione uma categoria",
         options=[],
+        width=300
     )
 
     def carregar_categorias():
@@ -267,19 +299,13 @@ def tela_cadastro_produtos(page):
             response = requests.get("http://localhost:8000/api/categorias/")
             if response.status_code == 200:
                 data = response.json()
-
                 opcoes_categorias = [ft.dropdown.Option(text=c["nome"], key=str(c["id"])) for c in data]
-
                 if not opcoes_categorias:
                     print("Nenhuma categoria encontrada no banco de dados.")
                     return
-
                 categoria_dropdown.options = opcoes_categorias
                 categoria_dropdown.value = opcoes_categorias[0].key
-
                 page.update()
-            else:
-                print(f"Erro ao buscar categorias: {response.status_code}")
         except Exception as e:
             print(f"Erro ao conectar com o backend: {e}")
 
@@ -292,8 +318,6 @@ def tela_cadastro_produtos(page):
     preco.on_change = validar_preco
 
     def on_cadastrar(e):
-        print("Botão cadastrar clicado!")
-
         categoria_selecionada = categoria_dropdown.value
         categoria_digitada = categoria.value.strip()
         categoria_final = categoria_digitada if categoria_digitada else categoria_selecionada
@@ -311,21 +335,16 @@ def tela_cadastro_produtos(page):
             return
 
         try:
-            preco_formatado = preco.value.strip()  # 🔹 Agora o valor é mantido sem alterações!
-
-            # 🔹 Debug: Verificar os valores antes de enviar
-            print(f"Enviando dados -> Nome: {produto.value.strip()}, Preço: {preco_formatado}, Categoria: {categoria_final}")
+            preco_formatado = preco.value.strip()
 
             response = requests.post(
                 "http://localhost:8000/api/cadastrar_produto/",
                 json={
                     "nome": produto.value.strip(),
-                    "preco": preco_formatado,  # ✅ Agora mantém exatamente o que foi digitado
+                    "preco": preco_formatado,
                     "categoria_id": categoria_final
                 }
             )
-
-            print(f"Resposta da API -> Código: {response.status_code}, Resposta: {response.text}")
 
             if response.status_code == 201:
                 produto.value = ""
@@ -334,40 +353,68 @@ def tela_cadastro_produtos(page):
                 categoria_dropdown.value = None
                 snackbar = ft.SnackBar(content=ft.Text("Produto cadastrado com sucesso!"), open=True)
             else:
-                try:
-                    error_msg = response.json().get("error", "Erro desconhecido")
-                except:
-                    error_msg = response.text
+                error_msg = response.json().get("error", "Erro desconhecido")
                 snackbar = ft.SnackBar(content=ft.Text(f"Erro ao cadastrar: {error_msg}"), open=True)
 
             page.snack_bar = snackbar
             page.update()
 
         except Exception as ex:
-            print(f"Erro ao conectar ao servidor: {ex}")
             snackbar = ft.SnackBar(content=ft.Text(f"Erro ao conectar ao servidor: {ex}"), open=True)
             page.snack_bar = snackbar
             page.update()
 
-    botao_cadastrar = ft.ElevatedButton(text="Cadastrar", on_click=on_cadastrar)
-    botao_voltar = ft.ElevatedButton(text='Voltar', on_click=lambda e: tela_principal(page))
+    botao_cadastrar = ft.ElevatedButton(
+        text="Cadastrar",
+        on_click=on_cadastrar,
+        width=300,
+        bgcolor=ft.colors.BLUE,
+        color=ft.colors.WHITE
+    )
+
+    botao_voltar = ft.ElevatedButton(
+        text="Voltar",
+        on_click=lambda e: tela_principal(page),
+        width=300,
+        bgcolor=ft.colors.RED,
+        color=ft.colors.WHITE
+    )
+
+    container = ft.Container(
+        content=ft.Column(
+            [
+                titulo,
+                produto,
+                preco,
+                categoria,
+                categoria_dropdown,
+                botao_cadastrar,
+                botao_voltar
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=15
+        ),
+        width=350,
+        padding=20,
+        border_radius=12,
+        bgcolor=ft.colors.GREY_200
+    )
 
     page.add(
-        titulo_produto,
-        produto,
-        titulo_preco,
-        preco,
-        titulo_categoria,
-        categoria,
-        categoria_dropdown,
-        botao_cadastrar,
-        botao_voltar
+        ft.Row([container], alignment=ft.MainAxisAlignment.CENTER)
     )
 
 def tela_ver_produtos(page):
     page.clean()
 
-    status_text = ft.Text("Carregando...")  # Mensagem de carregamento
+    status_text = ft.Row(
+        [
+            ft.ProgressRing(width=20, height=20, stroke_width=3),  # Spinner de carregamento
+            ft.Text("Carregando...", size=16, weight="bold")
+        ],
+        alignment=ft.MainAxisAlignment.CENTER
+    )
 
     # Criando uma lista rolável para os produtos
     lista_produtos = ft.ListView(
@@ -388,7 +435,7 @@ def tela_ver_produtos(page):
 
             lista_produtos.controls.clear()
 
-            titulo = ft.Text("Lista de Produtos", text_align="center")
+            titulo = ft.Text("Lista de Produtos", text_align="center", weight="bold", size=18)  # Negrito
             lista_produtos.controls.append(titulo)
 
             for produto in produtos:
@@ -427,13 +474,23 @@ def tela_ver_produtos(page):
         page.update()
 
     botoes_container = ft.Row(
-    [
-        ft.ElevatedButton("Atualizar Lista", on_click=lambda e: carregar_produtos()),
-        ft.Container(width=20),  # Espaçamento entre os botões
-        ft.ElevatedButton("Voltar", on_click=lambda e: tela_principal(page))
-    ],
-    alignment=ft.MainAxisAlignment.CENTER
-)
+        [
+            ft.ElevatedButton(
+                "Atualizar Lista",
+                on_click=lambda e: carregar_produtos(),
+                bgcolor="#1E88E5",  # Azul padrão
+                color="white"
+            ),
+            ft.Container(width=20),  # Espaçamento entre os botões
+            ft.ElevatedButton(
+                "Voltar",
+                on_click=lambda e: tela_principal(page),
+                bgcolor="#DC3545",  # Vermelho
+                color="white"
+            )
+        ],
+        alignment=ft.MainAxisAlignment.CENTER
+    )
 
     def excluir_produto(produto_id):
         try:
